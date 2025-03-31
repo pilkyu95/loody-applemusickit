@@ -21,6 +21,7 @@
   <div id="music-actions">
     <button id="search-btn" disabled>Search Albums</button>
     <button id="library-btn" disabled>Load Library Albums</button>
+    <button id="play-album-btn" disabled>Play Specific Album</button>
   </div>
 
   <div id="search-results">
@@ -34,6 +35,12 @@
     <div id="library-albums"></div>
   </div>
 
+  <div id="player-controls">
+    <h2>Player Controls</h2>
+    <input type="text" id="album-id-input" placeholder="Enter Album ID">
+    <div id="playback-status"></div>
+  </div>
+
   <script>
     document.addEventListener('musickitloaded', async function() {
       const authorizeBtn = document.getElementById('authorize-btn');
@@ -41,9 +48,12 @@
       const statusDiv = document.getElementById('status');
       const searchBtn = document.getElementById('search-btn');
       const libraryBtn = document.getElementById('library-btn');
+      const playAlbumBtn = document.getElementById('play-album-btn');
       const searchInput = document.getElementById('search-input');
       const searchContent = document.getElementById('search-content');
       const libraryAlbums = document.getElementById('library-albums');
+      const albumIdInput = document.getElementById('album-id-input');
+      const playbackStatus = document.getElementById('playback-status');
       
       // Fetch MusicKit Developer Token from serverless function
       try {
@@ -67,12 +77,14 @@
             unauthorizeBtn.disabled = false;
             searchBtn.disabled = false;
             libraryBtn.disabled = false;
+            playAlbumBtn.disabled = false;
           } else {
             statusDiv.textContent = 'Not authorized';
             authorizeBtn.disabled = false;
             unauthorizeBtn.disabled = true;
             searchBtn.disabled = true;
             libraryBtn.disabled = true;
+            playAlbumBtn.disabled = true;
           }
         }
         
@@ -97,8 +109,33 @@
             statusDiv.textContent = 'Unauthorization successful';
             searchContent.innerHTML = '';
             libraryAlbums.innerHTML = '';
+            playbackStatus.innerHTML = '';
           } catch (error) {
             statusDiv.textContent = 'Unauthorization failed: ' + error;
+          }
+        });
+        
+        // Play Specific Album Handler
+        playAlbumBtn.addEventListener('click', async function() {
+          const albumId = albumIdInput.value.trim();
+          if (!albumId) {
+            playbackStatus.textContent = 'Please enter an Album ID';
+            return;
+          }
+          
+          try {
+            // Ensure authorization before playing
+            await music.authorize();
+            
+            // Set the queue and start playing
+            const queue = await music.setQueue({ album: albumId }, { startPlaying: true });
+            
+            playbackStatus.innerHTML = `
+              <p>Album queued and playing</p>
+              <p>Album ID: ${albumId}</p>
+            `;
+          } catch (error) {
+            playbackStatus.innerHTML = 'Failed to play album: ' + error;
           }
         });
         
@@ -120,12 +157,13 @@
               }
             );
             
-            // Render search results
+            // Render search results with Album IDs
             searchContent.innerHTML = result.data.results.albums.data.map(album => `
               <div>
                 <h3>${album.attributes.name}</h3>
                 <p>Artist: ${album.attributes.artistName}</p>
                 <p>Release Date: ${album.attributes.releaseDate}</p>
+                <p>Album ID: ${album.id}</p>
               </div>
             `).join('');
           } catch (error) {
@@ -146,6 +184,7 @@
               <div>
                 <h3>${album.attributes.name}</h3>
                 <p>Artist: ${album.attributes.artistName}</p>
+                <p>Album ID: ${album.id}</p>
               </div>
             `).join('');
           } catch (error) {
