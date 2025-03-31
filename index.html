@@ -1,11 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>내 GitHub Pages 웹사이트</title>
-    <meta charset="UTF-8">
+  <title>MusicKit Authorization Check</title>
+  <meta name="apple-music-developer-token" content="eyJhbGciOiJFUzI1NiIsImtpZCI6Ik5UNzc3VVA2M1IiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJGNzNTNTY4U1Q0IiwiaWF0IjoxNzQzNDEzMzc3LCJleHAiOjE3NTkxOTAzNzcsIm9yaWdpbiI6WyJodHRwczovL3BpbGt5dTk1LmdpdGh1Yi5pby9sb29keS1hcHBsZW11c2lja2l0LyJdfQ.fmb5aGq09pSzf9tbxdVlO4_ypCgRewihJpLzzmyOAUJMa9hbzXXQrsA8ERIzzWEnmcpVL79sgOQAsmo5KHpc9A" />
+  <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" async></script>
 </head>
 <body>
-    <h1>안녕하세요!</h1>
-    <p>GitHub Pages로 호스팅된 내 웹사이트입니다.</p>
+  <button id="authorize-btn">Authorize</button>
+  <div id="status">Not authorized</div>
+
+  <script>
+    document.addEventListener('musickitloaded', function() {
+      const authorizeBtn = document.getElementById('authorize-btn');
+      const statusDiv = document.getElementById('status');
+      
+      // Initialize MusicKit
+      MusicKit.configure({
+        developerToken: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Ik5UNzc3VVA2M1IiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJGNzNTNTY4U1Q0IiwiaWF0IjoxNzQzNDEzMzc3LCJleHAiOjE3NTkxOTAzNzcsIm9yaWdpbiI6WyJodHRwczovL3BpbGt5dTk1LmdpdGh1Yi5pby9sb29keS1hcHBsZW11c2lja2l0LyJdfQ.fmb5aGq09pSzf9tbxdVlO4_ypCgRewihJpLzzmyOAUJMa9hbzXXQrsA8ERIzzWEnmcpVL79sgOQAsmo5KHpc9A',
+        app: {
+          name: 'MusicKit Auth Test',
+        }
+      }).then(function(music) {
+        // Check if already authorized
+        if (music.isAuthorized) {
+          statusDiv.textContent = 'Already authorized';
+        }
+        
+        // Add authorize button handler
+        authorizeBtn.addEventListener('click', function() {
+          music.authorize().then(function() {
+            statusDiv.textContent = 'Authorization successful';
+          }).catch(function(error) {
+            statusDiv.textContent = 'Authorization failed: ' + error;
+          });
+        });
+      });
+    });
+  </script>
 </body>
 </html>
