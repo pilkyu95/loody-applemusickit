@@ -6,7 +6,8 @@
   <style>
     body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
     button { margin: 10px 0; padding: 10px; }
-    #status, #library-content { margin: 10px 0; }
+    #status, #library-content, #playback-controls { margin: 10px 0; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
@@ -18,10 +19,13 @@
     <div id="status">Not authorized</div>
   </div>
 
+  <div id="music-card">
+    <apple-music-card-player></apple-music-card-player>
+  </div>
+
   <div id="music-actions">
     <button id="search-btn" disabled>Search Albums</button>
     <button id="library-btn" disabled>Load Library Albums</button>
-    <button id="play-album-btn" disabled>Play Specific Album</button>
   </div>
 
   <div id="search-results">
@@ -38,22 +42,146 @@
   <div id="player-controls">
     <h2>Player Controls</h2>
     <input type="text" id="album-id-input" placeholder="Enter Album ID">
+    <button id="queue-album-btn" disabled>Queue Album</button>
+    
+    <div id="playback-controls" class="hidden">
+      <button id="play-btn">Play</button>
+      <button id="pause-btn">Pause</button>
+      <button id="next-btn">Next</button>
+      <button id="previous-btn">Previous</button>
+    </div>
+    
     <div id="playback-status"></div>
   </div>
 
   <script>
+    // Custom Web Component for Apple Music Card Player
+    class AppleMusicCardPlayer extends HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+      }
+
+      connectedCallback() {
+        this.render();
+        this.setupMusicKitListeners();
+      }
+
+      render(nowPlayingItem = null) {
+        const styles = `
+          <style>
+            .music-card {
+              display: flex;
+              align-items: center;
+              background-color: #f4f4f4;
+              border-radius: 10px;
+              padding: 15px;
+              max-width: 400px;
+              margin: 0 auto;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .artwork {
+              width: 100px;
+              height: 100px;
+              border-radius: 8px;
+              margin-right: 15px;
+              background-color: #e0e0e0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: #888;
+            }
+            .artwork img {
+              max-width: 100%;
+              max-height: 100%;
+              object-fit: cover;
+              border-radius: 8px;
+            }
+            .details {
+              flex-grow: 1;
+            }
+            .track-title {
+              font-weight: bold;
+              margin-bottom: 5px;
+            }
+            .artist-album {
+              color: #666;
+              font-size: 0.9em;
+            }
+            .no-track {
+              color: #888;
+              text-align: center;
+              width: 100%;
+            }
+          </style>
+        `;
+
+        const template = nowPlayingItem ? `
+          <div class="music-card">
+            <div class="artwork">
+              ${nowPlayingItem.artwork 
+                ? `<img src="${nowPlayingItem.artwork.url.replace('{w}', '200').replace('{h}', '200')}" alt="Album Artwork">`
+                : 'No Artwork'}
+            </div>
+            <div class="details">
+              <div class="track-title">${nowPlayingItem.title || 'Unknown Track'}</div>
+              <div class="artist-album">
+                ${nowPlayingItem.artistName || 'Unknown Artist'} - 
+                ${nowPlayingItem.albumName || 'Unknown Album'}
+              </div>
+            </div>
+          </div>
+        ` : `
+          <div class="music-card">
+            <div class="no-track">No track currently playing</div>
+          </div>
+        `;
+
+        this.shadowRoot.innerHTML = styles + template;
+      }
+
+      setupMusicKitListeners() {
+        // Check if MusicKit is available
+        if (window.MusicKit) {
+          const music = window.MusicKit.getInstance();
+          
+          // Update on now playing item change
+          music.addEventListener(MusicKit.Events.mediaItemDidChange, (mediaItem) => {
+            this.render(mediaItem);
+          });
+
+          // Initial render if something is already playing
+          if (music.nowPlayingItem) {
+            this.render(music.nowPlayingItem);
+          }
+        }
+      }
+    }
+
+    // Define the custom element
+    customElements.define('apple-music-card-player', AppleMusicCardPlayer);
+
     document.addEventListener('musickitloaded', async function() {
       const authorizeBtn = document.getElementById('authorize-btn');
       const unauthorizeBtn = document.getElementById('unauthorize-btn');
       const statusDiv = document.getElementById('status');
       const searchBtn = document.getElementById('search-btn');
       const libraryBtn = document.getElementById('library-btn');
-      const playAlbumBtn = document.getElementById('play-album-btn');
+      const queueAlbumBtn = document.getElementById('queue-album-btn');
       const searchInput = document.getElementById('search-input');
       const searchContent = document.getElementById('search-content');
       const libraryAlbums = document.getElementById('library-albums');
       const albumIdInput = document.getElementById('album-id-input');
       const playbackStatus = document.getElementById('playback-status');
+      const playbackControls = document.getElementById('playback-controls');
+      
+      // Playback control buttons
+      const playBtn = document.getElementById('play-btn');
+      const pauseBtn = document.getElementById('pause-btn');
+      const nextBtn = document.getElementById('next-btn');
+      const previousBtn = document.getElementById('previous-btn');
+      
+      let musicInstance = null;
       
       // Fetch MusicKit Developer Token from serverless function
       try {
@@ -61,7 +189,7 @@
         const data = await response.json();
         
         // Configure MusicKit
-        const music = await MusicKit.configure({
+        musicInstance = await MusicKit.configure({
           developerToken: data.token,
           app: {
             name: 'My Apple Music Web App',
@@ -71,20 +199,21 @@
         
         // Check initial authorization status
         function updateAuthorizationUI() {
-          if (music.isAuthorized) {
+          if (musicInstance.isAuthorized) {
             statusDiv.textContent = 'Authorized';
             authorizeBtn.disabled = true;
             unauthorizeBtn.disabled = false;
             searchBtn.disabled = false;
             libraryBtn.disabled = false;
-            playAlbumBtn.disabled = false;
+            queueAlbumBtn.disabled = false;
           } else {
             statusDiv.textContent = 'Not authorized';
             authorizeBtn.disabled = false;
             unauthorizeBtn.disabled = true;
             searchBtn.disabled = true;
             libraryBtn.disabled = true;
-            playAlbumBtn.disabled = true;
+            queueAlbumBtn.disabled = true;
+            playbackControls.classList.add('hidden');
           }
         }
         
@@ -93,7 +222,7 @@
         // Authorization Handler
         authorizeBtn.addEventListener('click', async function() {
           try {
-            await music.authorize();
+            await musicInstance.authorize();
             updateAuthorizationUI();
             statusDiv.textContent = 'Authorization successful';
           } catch (error) {
@@ -104,7 +233,7 @@
         // Unauthorization Handler
         unauthorizeBtn.addEventListener('click', async function() {
           try {
-            await music.unauthorize();
+            await musicInstance.unauthorize();
             updateAuthorizationUI();
             statusDiv.textContent = 'Unauthorization successful';
             searchContent.innerHTML = '';
@@ -115,8 +244,8 @@
           }
         });
         
-        // Play Specific Album Handler
-        playAlbumBtn.addEventListener('click', async function() {
+        // Queue Album Handler
+        queueAlbumBtn.addEventListener('click', async function() {
           const albumId = albumIdInput.value.trim();
           if (!albumId) {
             playbackStatus.textContent = 'Please enter an Album ID';
@@ -124,18 +253,58 @@
           }
           
           try {
-            // Ensure authorization before playing
-            await music.authorize();
+            // Ensure authorization before queueing
+            await musicInstance.authorize();
             
-            // Set the queue and start playing
-            const queue = await music.setQueue({ album: albumId }, { startPlaying: true });
+            // Set the queue 
+            await musicInstance.setQueue({ album: albumId });
             
             playbackStatus.innerHTML = `
-              <p>Album queued and playing</p>
+              <p>Album queued</p>
               <p>Album ID: ${albumId}</p>
             `;
+            
+            // Show playback controls
+            playbackControls.classList.remove('hidden');
           } catch (error) {
-            playbackStatus.innerHTML = 'Failed to play album: ' + error;
+            playbackStatus.innerHTML = 'Failed to queue album: ' + error;
+          }
+        });
+        
+        // Playback Control Handlers
+        playBtn.addEventListener('click', async function() {
+          try {
+            await musicInstance.play();
+            playbackStatus.textContent = 'Playing';
+          } catch (error) {
+            playbackStatus.textContent = 'Play failed: ' + error;
+          }
+        });
+        
+        pauseBtn.addEventListener('click', async function() {
+          try {
+            await musicInstance.pause();
+            playbackStatus.textContent = 'Paused';
+          } catch (error) {
+            playbackStatus.textContent = 'Pause failed: ' + error;
+          }
+        });
+        
+        nextBtn.addEventListener('click', async function() {
+          try {
+            await musicInstance.skipToNextItem();
+            playbackStatus.textContent = 'Skipped to next track';
+          } catch (error) {
+            playbackStatus.textContent = 'Skip failed: ' + error;
+          }
+        });
+        
+        previousBtn.addEventListener('click', async function() {
+          try {
+            await musicInstance.skipToPreviousItem();
+            playbackStatus.textContent = 'Skipped to previous track';
+          } catch (error) {
+            playbackStatus.textContent = 'Previous track failed: ' + error;
           }
         });
         
@@ -148,7 +317,7 @@
           }
           
           try {
-            const result = await music.api.music(
+            const result = await musicInstance.api.music(
               `/v1/catalog/us/search`,
               { 
                 term: searchTerm, 
@@ -175,9 +344,9 @@
         libraryBtn.addEventListener('click', async function() {
           try {
             // Ensure authorization before accessing library
-            await music.authorize();
+            await musicInstance.authorize();
             
-            const result = await music.api.music('v1/me/library/albums');
+            const result = await musicInstance.api.music('v1/me/library/albums');
             
             // Render library albums
             libraryAlbums.innerHTML = result.data.data.map(album => `
