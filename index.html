@@ -19,10 +19,6 @@
     <div id="status">Not authorized</div>
   </div>
 
-  <div id="music-card">
-    <apple-music-card-player></apple-music-card-player>
-  </div>
-
   <div id="music-actions">
     <button id="search-btn" disabled>Search Albums</button>
     <button id="library-btn" disabled>Load Library Albums</button>
@@ -55,112 +51,6 @@
   </div>
 
   <script>
-    // Custom Web Component for Apple Music Card Player
-    class AppleMusicCardPlayer extends HTMLElement {
-      constructor() {
-        super();
-        this.attachShadow({ mode: 'open' });
-      }
-
-      connectedCallback() {
-        this.render();
-        this.setupMusicKitListeners();
-      }
-
-      render(nowPlayingItem = null) {
-        const styles = `
-          <style>
-            .music-card {
-              display: flex;
-              align-items: center;
-              background-color: #f4f4f4;
-              border-radius: 10px;
-              padding: 15px;
-              max-width: 400px;
-              margin: 0 auto;
-              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            .artwork {
-              width: 100px;
-              height: 100px;
-              border-radius: 8px;
-              margin-right: 15px;
-              background-color: #e0e0e0;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: #888;
-            }
-            .artwork img {
-              max-width: 100%;
-              max-height: 100%;
-              object-fit: cover;
-              border-radius: 8px;
-            }
-            .details {
-              flex-grow: 1;
-            }
-            .track-title {
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .artist-album {
-              color: #666;
-              font-size: 0.9em;
-            }
-            .no-track {
-              color: #888;
-              text-align: center;
-              width: 100%;
-            }
-          </style>
-        `;
-
-        const template = nowPlayingItem ? `
-          <div class="music-card">
-            <div class="artwork">
-              ${nowPlayingItem.artwork 
-                ? `<img src="${nowPlayingItem.artwork.url.replace('{w}', '200').replace('{h}', '200')}" alt="Album Artwork">`
-                : 'No Artwork'}
-            </div>
-            <div class="details">
-              <div class="track-title">${nowPlayingItem.title || 'Unknown Track'}</div>
-              <div class="artist-album">
-                ${nowPlayingItem.artistName || 'Unknown Artist'} - 
-                ${nowPlayingItem.albumName || 'Unknown Album'}
-              </div>
-            </div>
-          </div>
-        ` : `
-          <div class="music-card">
-            <div class="no-track">No track currently playing</div>
-          </div>
-        `;
-
-        this.shadowRoot.innerHTML = styles + template;
-      }
-
-      setupMusicKitListeners() {
-        // Check if MusicKit is available
-        if (window.MusicKit) {
-          const music = window.MusicKit.getInstance();
-          
-          // Update on now playing item change
-          music.addEventListener(MusicKit.Events.mediaItemDidChange, (mediaItem) => {
-            this.render(mediaItem);
-          });
-
-          // Initial render if something is already playing
-          if (music.nowPlayingItem) {
-            this.render(music.nowPlayingItem);
-          }
-        }
-      }
-    }
-
-    // Define the custom element
-    customElements.define('apple-music-card-player', AppleMusicCardPlayer);
-
     document.addEventListener('musickitloaded', async function() {
       const authorizeBtn = document.getElementById('authorize-btn');
       const unauthorizeBtn = document.getElementById('unauthorize-btn');
