@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>MusicKit Player & Apple Music API</title>
-  <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" async></script>
+  <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js"></script>
   <style>
     body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
     button { margin: 10px 5px; padding: 10px; }
@@ -22,7 +22,7 @@
   <div id="authorization-section">
     <button id="authorize-btn">Authorize Apple Music</button>
     <button id="unauthorize-btn" disabled>Unauthorize</button>
-    <div id="status">Not authorized</div>
+    <div id="status">Not initialized</div>
   </div>
 
   <div id="music-actions">
@@ -71,17 +71,22 @@
   </div>
 
   <script>
-    document.addEventListener('musickitloaded', async function() {
+    // Declare variables outside to ensure they're in the global scope
+    let musicKit;
+    let player;
+
+    // MusicKit configuration
+    document.addEventListener('musickitloaded', function() {
+      const statusDiv = document.getElementById('status');
       const authorizeBtn = document.getElementById('authorize-btn');
       const unauthorizeBtn = document.getElementById('unauthorize-btn');
-      const statusDiv = document.getElementById('status');
       const searchBtn = document.getElementById('search-btn');
       const libraryBtn = document.getElementById('library-btn');
+
+      // UI Elements
       const searchInput = document.getElementById('search-input');
       const searchContent = document.getElementById('search-content');
       const libraryAlbums = document.getElementById('library-albums');
-      
-      // Player Controls
       const currentTrackDiv = document.getElementById('current-track');
       const previousBtn = document.getElementById('previous-btn');
       const playPauseBtn = document.getElementById('play-pause-btn');
@@ -89,25 +94,49 @@
       const volumeSlider = document.getElementById('volume-slider');
       const playbackRateSelect = document.getElementById('playback-rate');
       const shuffleToggle = document.getElementById('shuffle-toggle');
-      
-      // Fetch MusicKit Developer Token from serverless function
-      try {
-        const response = await fetch('/.netlify/functions/get-musickit-token');
-        const data = await response.json();
-        
-        // Configure MusicKit
-        const music = await MusicKit.configure({
-          developerToken: data.token,
-          app: {
-            name: 'My Apple Music Web App',
-            build: '1.0.0',
-          }
-        });
-        
-        // Player Setup
-        const player = music.player;
-        
-        // Update UI based on current track
+
+      // Function to fetch developer token
+      async function fetchDeveloperToken() {
+        try {
+          const response = await fetch('/.netlify/functions/get-musickit-token');
+          const data = await response.json();
+          return data.token;
+        } catch (error) {
+          statusDiv.textContent = 'Error fetching token: ' + error;
+          throw error;
+        }
+      }
+
+      // Initialize MusicKit
+      async function initializeMusicKit() {
+        try {
+          const developerToken = await fetchDeveloperToken();
+
+          // Configure MusicKit
+          musicKit = await MusicKit.configure({
+            developerToken: developerToken,
+            app: {
+              name: 'My Apple Music Web App',
+              build: '1.0.0',
+            }
+          });
+
+          // Get player instance
+          player = musicKit.player;
+
+          // Update UI on initialization
+          statusDiv.textContent = 'MusicKit Initialized';
+          setupEventListeners();
+          updateAuthorizationUI();
+        } catch (error) {
+          statusDiv.textContent = 'Error initializing MusicKit: ' + error;
+          console.error(error);
+        }
+      }
+
+      // Setup event listeners
+      function setupEventListeners() {
+        // Update current track
         function updateCurrentTrack() {
           const nowPlayingItem = player.nowPlayingItem;
           if (nowPlayingItem) {
@@ -119,28 +148,28 @@
             currentTrackDiv.textContent = 'No track playing';
           }
         }
-        
-        // Player Event Listeners
+
+        // Player event listeners
         player.addEventListener('mediaItemDidChange', updateCurrentTrack);
         player.addEventListener('playbackStateDidChange', () => {
           playPauseBtn.textContent = player.isPlaying ? '⏸️ Pause' : '▶️ Play';
         });
-        
+
         // Volume Control
         volumeSlider.addEventListener('input', (e) => {
           player.volume = parseFloat(e.target.value);
         });
-        
+
         // Playback Rate Control
         playbackRateSelect.addEventListener('change', (e) => {
           player.playbackRate = parseFloat(e.target.value);
         });
-        
+
         // Shuffle Toggle
         shuffleToggle.addEventListener('change', (e) => {
           player.shuffle = e.target.checked;
         });
-        
+
         // Previous, Play/Pause, Next Buttons
         previousBtn.addEventListener('click', () => player.skipToPreviousItem());
         nextBtn.addEventListener('click', () => player.skipToNextItem());
@@ -151,136 +180,133 @@
             player.play();
           }
         });
-        
-        // Check initial authorization status
-        function updateAuthorizationUI() {
-          if (music.isAuthorized) {
-            statusDiv.textContent = 'Authorized';
-            authorizeBtn.disabled = true;
-            unauthorizeBtn.disabled = false;
-            searchBtn.disabled = false;
-            libraryBtn.disabled = false;
-            
-            // Enable player controls
-            previousBtn.disabled = false;
-            playPauseBtn.disabled = false;
-            nextBtn.disabled = false;
-          } else {
-            statusDiv.textContent = 'Not authorized';
-            authorizeBtn.disabled = false;
-            unauthorizeBtn.disabled = true;
-            searchBtn.disabled = true;
-            libraryBtn.disabled = true;
-            
-            // Disable player controls
-            previousBtn.disabled = true;
-            playPauseBtn.disabled = true;
-            nextBtn.disabled = true;
-          }
+      }
+
+      // Update UI based on authorization
+      function updateAuthorizationUI() {
+        if (musicKit.isAuthorized) {
+          statusDiv.textContent = 'Authorized';
+          authorizeBtn.disabled = true;
+          unauthorizeBtn.disabled = false;
+          searchBtn.disabled = false;
+          libraryBtn.disabled = false;
+          
+          // Enable player controls
+          previousBtn.disabled = false;
+          playPauseBtn.disabled = false;
+          nextBtn.disabled = false;
+        } else {
+          statusDiv.textContent = 'Not authorized';
+          authorizeBtn.disabled = false;
+          unauthorizeBtn.disabled = true;
+          searchBtn.disabled = true;
+          libraryBtn.disabled = true;
+          
+          // Disable player controls
+          previousBtn.disabled = true;
+          playPauseBtn.disabled = true;
+          nextBtn.disabled = true;
+        }
+      }
+
+      // Authorization Handlers
+      authorizeBtn.addEventListener('click', async () => {
+        try {
+          await musicKit.authorize();
+          updateAuthorizationUI();
+          statusDiv.textContent = 'Authorization successful';
+        } catch (error) {
+          statusDiv.textContent = 'Authorization failed: ' + error;
+        }
+      });
+
+      unauthorizeBtn.addEventListener('click', async () => {
+        try {
+          await musicKit.unauthorize();
+          updateAuthorizationUI();
+          statusDiv.textContent = 'Unauthorization successful';
+          searchContent.innerHTML = '';
+          libraryAlbums.innerHTML = '';
+          currentTrackDiv.textContent = 'No track playing';
+        } catch (error) {
+          statusDiv.textContent = 'Unauthorization failed: ' + error;
+        }
+      });
+
+      // Search Albums Handler
+      searchBtn.addEventListener('click', async () => {
+        const searchTerm = searchInput.value.trim();
+        if (!searchTerm) {
+          searchContent.innerHTML = 'Please enter a search term';
+          return;
         }
         
-        updateAuthorizationUI();
-        
-        // Authorization Handler
-        authorizeBtn.addEventListener('click', async function() {
-          try {
-            await music.authorize();
-            updateAuthorizationUI();
-            statusDiv.textContent = 'Authorization successful';
-          } catch (error) {
-            statusDiv.textContent = 'Authorization failed: ' + error;
-          }
-        });
-        
-        // Unauthorization Handler
-        unauthorizeBtn.addEventListener('click', async function() {
-          try {
-            await music.unauthorize();
-            updateAuthorizationUI();
-            statusDiv.textContent = 'Unauthorization successful';
-            searchContent.innerHTML = '';
-            libraryAlbums.innerHTML = '';
-            currentTrackDiv.textContent = 'No track playing';
-          } catch (error) {
-            statusDiv.textContent = 'Unauthorization failed: ' + error;
-          }
-        });
-        
-        // Search Albums Handler
-        searchBtn.addEventListener('click', async function() {
-          const searchTerm = searchInput.value.trim();
-          if (!searchTerm) {
-            searchContent.innerHTML = 'Please enter a search term';
-            return;
-          }
+        try {
+          const result = await musicKit.api.music(
+            `/v1/catalog/us/search`,
+            { 
+              term: searchTerm, 
+              types: 'albums',
+              limit: 10 
+            }
+          );
           
-          try {
-            const result = await music.api.music(
-              `/v1/catalog/us/search`,
-              { 
-                term: searchTerm, 
-                types: 'albums',
-                limit: 10 
-              }
-            );
-            
-            // Render search results with play buttons
-            searchContent.innerHTML = result.data.results.albums.data.map(album => `
-              <div>
-                <h3>${album.attributes.name}</h3>
-                <p>Artist: ${album.attributes.artistName}</p>
-                <p>Release Date: ${album.attributes.releaseDate}</p>
-                <button onclick="playAlbum('${album.id}')">Play Album</button>
-              </div>
-            `).join('');
-            
-            // Make playAlbum function global
-            window.playAlbum = async (albumId) => {
-              try {
-                await music.setQueue({ album: albumId });
-                await player.play();
-              } catch (error) {
-                console.error('Error playing album:', error);
-              }
-            };
-          } catch (error) {
-            searchContent.innerHTML = 'Search failed: ' + error;
-          }
-        });
-        
-        // Load Library Albums Handler
-        libraryBtn.addEventListener('click', async function() {
-          try {
-            // Ensure authorization before accessing library
-            await music.authorize();
-            
-            const result = await music.api.library.albums({ limit: 25, offset: 0 });
-            
-            // Render library albums with play buttons
-            libraryAlbums.innerHTML = result.data.data.map(album => `
-              <div>
-                <h3>${album.attributes.name}</h3>
-                <p>Artist: ${album.attributes.artistName}</p>
-                <button onclick="playLibraryAlbum('${album.id}')">Play Album</button>
-              </div>
-            `).join('');
-            
-            // Make playLibraryAlbum function global
-            window.playLibraryAlbum = async (albumId) => {
-              try {
-                await music.setQueue({ library: albumId });
-                await player.play();
-              } catch (error) {
-                console.error('Error playing library album:', error);
-              }
-            };
-          } catch (error) {
-            libraryAlbums.innerHTML = 'Failed to load library: ' + error;
-          }
-        });
-      } catch (error) {
-        statusDiv.textContent = 'Error initializing MusicKit: ' + error;
-      }
+          // Render search results with play buttons
+          searchContent.innerHTML = result.data.results.albums.data.map(album => `
+            <div>
+              <h3>${album.attributes.name}</h3>
+              <p>Artist: ${album.attributes.artistName}</p>
+              <p>Release Date: ${album.attributes.releaseDate}</p>
+              <button onclick="playAlbum('${album.id}')">Play Album</button>
+            </div>
+          `).join('');
+        } catch (error) {
+          searchContent.innerHTML = 'Search failed: ' + error;
+        }
+      });
+
+      // Library Albums Handler
+      libraryBtn.addEventListener('click', async () => {
+        try {
+          // Ensure authorization before accessing library
+          await musicKit.authorize();
+          
+          const result = await musicKit.api.library.albums({ limit: 25, offset: 0 });
+          
+          // Render library albums with play buttons
+          libraryAlbums.innerHTML = result.data.data.map(album => `
+            <div>
+              <h3>${album.attributes.name}</h3>
+              <p>Artist: ${album.attributes.artistName}</p>
+              <button onclick="playLibraryAlbum('${album.id}')">Play Album</button>
+            </div>
+          `).join('');
+        } catch (error) {
+          libraryAlbums.innerHTML = 'Failed to load library: ' + error;
+        }
+      });
+
+      // Global play functions
+      window.playAlbum = async (albumId) => {
+        try {
+          await musicKit.setQueue({ album: albumId });
+          await player.play();
+        } catch (error) {
+          console.error('Error playing album:', error);
+        }
+      };
+
+      window.playLibraryAlbum = async (albumId) => {
+        try {
+          await musicKit.setQueue({ library: albumId });
+          await player.play();
+        } catch (error) {
+          console.error('Error playing library album:', error);
+        }
+      };
+
+      // Initialize MusicKit when page loads
+      initializeMusicKit();
     });
   </script>
 </body>
