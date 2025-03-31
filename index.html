@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>MusicKit Authorization Check</title>
-  <meta name="apple-music-developer-token" content="__MUSICKIT_DEVELOPER_TOKEN__" />
   <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" async></script>
 </head>
 <body>
@@ -10,31 +9,40 @@
   <div id="status">Not authorized</div>
 
   <script>
-    document.addEventListener('musickitloaded', function() {
+    document.addEventListener('musickitloaded', async function() {
       const authorizeBtn = document.getElementById('authorize-btn');
       const statusDiv = document.getElementById('status');
       
-      // Initialize MusicKit
-      MusicKit.configure({
-        developerToken: "__MUSICKIT_DEVELOPER_TOKEN__",
-        app: {
-          name: 'MusicKit Auth Test',
-        }
-      }).then(function(music) {
-        // Check if already authorized
-        if (music.isAuthorized) {
-          statusDiv.textContent = 'Already authorized';
-        }
+      // 서버리스 함수를 통해 토큰 가져오기
+      try {
+        const response = await fetch('/.netlify/functions/get-musickit-token');
+        const data = await response.json();
         
-        // Add authorize button handler
-        authorizeBtn.addEventListener('click', function() {
-          music.authorize().then(function() {
-            statusDiv.textContent = 'Authorization successful';
-          }).catch(function(error) {
-            statusDiv.textContent = 'Authorization failed: ' + error;
+        // MusicKit 초기화
+        MusicKit.configure({
+          developerToken: data.token,
+          app: {
+            name: 'My Cool Web App',
+            build: '1978.4.1',
+          }
+        }).then(function(music) {
+          // 인증 상태 확인
+          if (music.isAuthorized) {
+            statusDiv.textContent = 'Already authorized';
+          }
+          
+          // 인증 버튼 이벤트 등록
+          authorizeBtn.addEventListener('click', function() {
+            music.authorize().then(function() {
+              statusDiv.textContent = 'Authorization successful';
+            }).catch(function(error) {
+              statusDiv.textContent = 'Authorization failed: ' + error;
+            });
           });
         });
-      });
+      } catch (error) {
+        statusDiv.textContent = 'Error fetching token: ' + error;
+      }
     });
   </script>
 </body>
