@@ -1,19 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>MusicKit Player & Apple Music API</title>
+  <title>MusicKit Authorization & Apple Music API</title>
   <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" async></script>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-    button { margin: 10px 5px; padding: 10px; }
-    #status, #library-content, #player-controls { margin: 10px 0; }
-    #player-controls { 
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      gap: 10px;
-    }
-    #current-track { text-align: center; margin: 10px 0; }
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+    button { margin: 10px 0; padding: 10px; }
+    #status, #library-content { margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -41,35 +34,6 @@
     <div id="library-albums"></div>
   </div>
 
-  <div id="player-section">
-    <h2>Music Player</h2>
-    <div id="current-track">No track selected</div>
-    <div id="player-controls">
-      <button id="previous-btn" disabled>⏮️ Previous</button>
-      <button id="play-pause-btn" disabled>▶️ Play</button>
-      <button id="next-btn" disabled>⏭️ Next</button>
-    </div>
-    <div id="player-settings">
-      <label>
-        Volume: 
-        <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1">
-      </label>
-      <label>
-        Playback Rate: 
-        <select id="playback-rate">
-          <option value="0.5">0.5x</option>
-          <option value="1" selected>1x</option>
-          <option value="1.5">1.5x</option>
-          <option value="2">2x</option>
-        </select>
-      </label>
-      <label>
-        Shuffle: 
-        <input type="checkbox" id="shuffle-toggle">
-      </label>
-    </div>
-  </div>
-
   <script>
     document.addEventListener('musickitloaded', async function() {
       const authorizeBtn = document.getElementById('authorize-btn');
@@ -80,15 +44,6 @@
       const searchInput = document.getElementById('search-input');
       const searchContent = document.getElementById('search-content');
       const libraryAlbums = document.getElementById('library-albums');
-      
-      // Player Controls
-      const currentTrackDiv = document.getElementById('current-track');
-      const previousBtn = document.getElementById('previous-btn');
-      const playPauseBtn = document.getElementById('play-pause-btn');
-      const nextBtn = document.getElementById('next-btn');
-      const volumeSlider = document.getElementById('volume-slider');
-      const playbackRateSelect = document.getElementById('playback-rate');
-      const shuffleToggle = document.getElementById('shuffle-toggle');
       
       // Fetch MusicKit Developer Token from serverless function
       try {
@@ -104,54 +59,6 @@
           }
         });
         
-        // Player Setup
-        const player = music.player;
-        
-        // Update UI based on current track
-        function updateCurrentTrack() {
-          const nowPlayingItem = player.nowPlayingItem;
-          if (nowPlayingItem) {
-            currentTrackDiv.innerHTML = `
-              <strong>${nowPlayingItem.title}</strong><br>
-              ${nowPlayingItem.artistName} - ${nowPlayingItem.albumName}
-            `;
-          } else {
-            currentTrackDiv.textContent = 'No track playing';
-          }
-        }
-        
-        // Player Event Listeners
-        player.addEventListener('mediaItemDidChange', updateCurrentTrack);
-        player.addEventListener('playbackStateDidChange', () => {
-          playPauseBtn.textContent = player.isPlaying ? '⏸️ Pause' : '▶️ Play';
-        });
-        
-        // Volume Control
-        volumeSlider.addEventListener('input', (e) => {
-          player.volume = parseFloat(e.target.value);
-        });
-        
-        // Playback Rate Control
-        playbackRateSelect.addEventListener('change', (e) => {
-          player.playbackRate = parseFloat(e.target.value);
-        });
-        
-        // Shuffle Toggle
-        shuffleToggle.addEventListener('change', (e) => {
-          player.shuffle = e.target.checked;
-        });
-        
-        // Previous, Play/Pause, Next Buttons
-        previousBtn.addEventListener('click', () => player.skipToPreviousItem());
-        nextBtn.addEventListener('click', () => player.skipToNextItem());
-        playPauseBtn.addEventListener('click', () => {
-          if (player.isPlaying) {
-            player.pause();
-          } else {
-            player.play();
-          }
-        });
-        
         // Check initial authorization status
         function updateAuthorizationUI() {
           if (music.isAuthorized) {
@@ -160,22 +67,12 @@
             unauthorizeBtn.disabled = false;
             searchBtn.disabled = false;
             libraryBtn.disabled = false;
-            
-            // Enable player controls
-            previousBtn.disabled = false;
-            playPauseBtn.disabled = false;
-            nextBtn.disabled = false;
           } else {
             statusDiv.textContent = 'Not authorized';
             authorizeBtn.disabled = false;
             unauthorizeBtn.disabled = true;
             searchBtn.disabled = true;
             libraryBtn.disabled = true;
-            
-            // Disable player controls
-            previousBtn.disabled = true;
-            playPauseBtn.disabled = true;
-            nextBtn.disabled = true;
           }
         }
         
@@ -200,7 +97,6 @@
             statusDiv.textContent = 'Unauthorization successful';
             searchContent.innerHTML = '';
             libraryAlbums.innerHTML = '';
-            currentTrackDiv.textContent = 'No track playing';
           } catch (error) {
             statusDiv.textContent = 'Unauthorization failed: ' + error;
           }
@@ -224,25 +120,14 @@
               }
             );
             
-            // Render search results with play buttons
+            // Render search results
             searchContent.innerHTML = result.data.results.albums.data.map(album => `
               <div>
                 <h3>${album.attributes.name}</h3>
                 <p>Artist: ${album.attributes.artistName}</p>
                 <p>Release Date: ${album.attributes.releaseDate}</p>
-                <button onclick="playAlbum('${album.id}')">Play Album</button>
               </div>
             `).join('');
-            
-            // Make playAlbum function global
-            window.playAlbum = async (albumId) => {
-              try {
-                await music.setQueue({ album: albumId });
-                await player.play();
-              } catch (error) {
-                console.error('Error playing album:', error);
-              }
-            };
           } catch (error) {
             searchContent.innerHTML = 'Search failed: ' + error;
           }
@@ -254,26 +139,15 @@
             // Ensure authorization before accessing library
             await music.authorize();
             
-            const result = await music.api.library.albums({ limit: 25, offset: 0 });
+            const result = await music.api.music('v1/me/library/albums');
             
-            // Render library albums with play buttons
+            // Render library albums
             libraryAlbums.innerHTML = result.data.data.map(album => `
               <div>
                 <h3>${album.attributes.name}</h3>
                 <p>Artist: ${album.attributes.artistName}</p>
-                <button onclick="playLibraryAlbum('${album.id}')">Play Album</button>
               </div>
             `).join('');
-            
-            // Make playLibraryAlbum function global
-            window.playLibraryAlbum = async (albumId) => {
-              try {
-                await music.setQueue({ library: albumId });
-                await player.play();
-              } catch (error) {
-                console.error('Error playing library album:', error);
-              }
-            };
           } catch (error) {
             libraryAlbums.innerHTML = 'Failed to load library: ' + error;
           }
